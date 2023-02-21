@@ -151,34 +151,35 @@ import Views
       cursor: isRefresh ? nil : cursor
     )
 
-    if let queryResult = queryResult {
-      let newItems: [LinkedItem] = {
-        var itemObjects = [LinkedItem]()
-        dataService.viewContext.performAndWait {
-          itemObjects = queryResult.itemIDs.compactMap { dataService.viewContext.object(with: $0) as? LinkedItem }
-        }
-        return itemObjects
-      }()
-
-      if searchTerm.replacingOccurrences(of: " ", with: "").isEmpty {
-        updateFetchController(dataService: dataService)
-      } else {
-        // Don't use FRC for searching. Use server results directly.
-        if fetchedResultsController != nil {
-          fetchedResultsController = nil
-          items = []
-        }
-        items = isRefresh ? newItems : items + newItems
-      }
-
-      isLoading = false
-      receivedIdx = thisSearchIdx
-      cursor = queryResult.cursor
-      if let username = dataService.currentViewer?.username {
-        await dataService.prefetchPages(itemIDs: newItems.map(\.unwrappedID), username: username)
-      }
-    } else {
+    guard let queryResult = queryResult else {
       updateFetchController(dataService: dataService)
+      return
+    }
+
+    let newItems: [LinkedItem] = {
+      var itemObjects = [LinkedItem]()
+      dataService.viewContext.performAndWait {
+        itemObjects = queryResult.itemIDs.compactMap { dataService.viewContext.object(with: $0) as? LinkedItem }
+      }
+      return itemObjects
+    }()
+
+    if searchTerm.replacingOccurrences(of: " ", with: "").isEmpty {
+      updateFetchController(dataService: dataService)
+    } else {
+      // Don't use FRC for searching. Use server results directly.
+      if fetchedResultsController != nil {
+        fetchedResultsController = nil
+        items = []
+      }
+      items = isRefresh ? newItems : items + newItems
+    }
+
+    isLoading = false
+    receivedIdx = thisSearchIdx
+    cursor = queryResult.cursor
+    if let username = dataService.currentViewer?.username {
+      await dataService.prefetchPages(itemIDs: newItems.map(\.unwrappedID), username: username)
     }
   }
 
@@ -194,11 +195,8 @@ import Views
       await group.waitForAll()
     }
 
-    let shouldSearch = items.count < 1 || isRefresh
-    if shouldSearch {
+    if items.isEmpty || isRefresh {
       await loadSearchQuery(dataService: dataService, isRefresh: isRefresh)
-    } else {
-      updateFetchController(dataService: dataService)
     }
 
     isLoading = false
@@ -215,58 +213,64 @@ import Views
     showLoadingBar = false
   }
 
-  private var fetchRequest: NSFetchRequest<Models.LinkedItem> {
-    let fetchRequest: NSFetchRequest<Models.LinkedItem> = LinkedItem.fetchRequest()
+  private var fetchPredicate: NSPredicate {
+    let itemFilter = LinkedItemFilter(rawValue: appliedFilter) ?? .inbox
+    var subPredicates = [
+      itemFilter.predicate
+    ]
 
-    var subPredicates = [NSPredicate]()
-
-    subPredicates.append((LinkedItemFilter(rawValue: appliedFilter) ?? .inbox).predicate)
-
-    if !selectedLabels.isEmpty {
-      var labelSubPredicates = [NSPredicate]()
-
-      for label in selectedLabels {
-        labelSubPredicates.append(
-          NSPredicate(format: "SUBQUERY(labels, $label, $label.id == \"\(label.unwrappedID)\").@count > 0")
-        )
-      }
-
-      subPredicates.append(NSCompoundPredicate(orPredicateWithSubpredicates: labelSubPredicates))
+    let selectedLabelIDs = selectedLabels.compactMap(\.id)
+    if !selectedLabelIDs.isEmpty {
+      let predicate = NSPredicate(format: "SUBQUERY(labels, $label, $label.id IN %@).@count > 0", selectedLabelIDs)
+      subPredicates.append(predicate)
     }
 
-    if !negatedLabels.isEmpty {
-      var labelSubPredicates = [NSPredicate]()
-
-      for label in negatedLabels {
-        labelSubPredicates.append(
-          NSPredicate(format: "SUBQUERY(labels, $label, $label.id == \"\(label.unwrappedID)\").@count == 0")
-        )
-      }
-
-      subPredicates.append(NSCompoundPredicate(orPredicateWithSubpredicates: labelSubPredicates))
+    let negatedLabelIDs = negatedLabels.compactMap(\.id)
+    if !negatedLabelIDs.isEmpty {
+      let predicate = NSPredicate(format: "SUBQUERY(labels, $label, $label.id IN %@).@count == 0", negatedLabelIDs)
+      subPredicates.append(predicate)
     }
 
-    fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: subPredicates)
-    fetchRequest.sortDescriptors = (LinkedItemSort(rawValue: appliedSort) ?? .newest).sortDescriptors
-
-    return fetchRequest
+    return NSCompoundPredicate(andPredicateWithSubpredicates: subPredicates)
   }
 
   private func updateFetchController(dataService: DataService) {
-    fetchedResultsController = NSFetchedResultsController(
-      fetchRequest: fetchRequest,
-      managedObjectContext: dataService.viewContext,
-      sectionNameKeyPath: nil,
-      cacheName: nil
-    )
+    let itemSort = LinkedItemSort(rawValue: appliedSort) ?? .newest
 
-    guard let fetchedResultsController = fetchedResultsController else {
-      return
+    if let frc = fetchedResultsController {
+      frc.fetchRequest.predicate = fetchPredicate
+      frc.fetchRequest.sortDescriptors = itemSort.sortDescriptors
+    } else {
+      let fetchRequest = LinkedItem.fetchRequest()
+      fetchRequest.predicate = fetchPredicate
+      fetchRequest.sortDescriptors = itemSort.sortDescriptors
+      fetchRequest.relationshipKeyPathsForPrefetching = [
+        #keyPath(LinkedItem.labels),
+        #keyPath(LinkedItem.highlights)
+      ]
+
+      let frc = NSFetchedResultsController(
+        fetchRequest: fetchRequest,
+        managedObjectContext: dataService.viewContext,
+        sectionNameKeyPath: nil,
+        cacheName: nil
+      )
+
+      frc.delegate = self
+      fetchedResultsController = frc
     }
 
-    fetchedResultsController.delegate = self
-    try? fetchedResultsController.performFetch()
-    items = fetchedResultsController.fetchedObjects ?? []
+    refetch()
+  }
+
+  private func refetch() {
+    guard let frc = fetchedResultsController else { return }
+    do {
+      try frc.performFetch()
+      items = frc.fetchedObjects ?? []
+    } catch {
+      items = []
+    }
   }
 
   func setLinkArchived(dataService: DataService, objectID: NSManagedObjectID, archived: Bool) {

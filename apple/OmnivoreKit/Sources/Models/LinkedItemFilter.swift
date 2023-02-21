@@ -38,7 +38,7 @@ public extension LinkedItemFilter {
       format: "%K != %i", #keyPath(LinkedItem.serverSyncStatus), Int64(ServerSyncStatus.needsDeletion.rawValue)
     )
     let notInArchivePredicate = NSPredicate(
-      format: "%K == %@", #keyPath(LinkedItem.isArchived), Int(truncating: false) as NSNumber
+      format: "%K == NO", #keyPath(LinkedItem.isArchived)
     )
 
     switch self {
@@ -48,7 +48,7 @@ public extension LinkedItemFilter {
     case .readlater:
       // non-archived or deleted items without the Newsletter label
       let nonNewsletterLabelPredicate = NSPredicate(
-        format: "NOT SUBQUERY(labels, $label, $label.name == \"Newsletter\") .@count > 0"
+        format: "SUBQUERY(labels, $label, $label.name == \"Newsletter\").@count == 0"
       )
       return NSCompoundPredicate(andPredicateWithSubpredicates: [
         undeletedPredicate, notInArchivePredicate, nonNewsletterLabelPredicate
@@ -70,7 +70,7 @@ public extension LinkedItemFilter {
       return undeletedPredicate
     case .archived:
       let inArchivePredicate = NSPredicate(
-        format: "%K == %@", #keyPath(LinkedItem.isArchived), Int(truncating: true) as NSNumber
+        format: "%K == YES", #keyPath(LinkedItem.isArchived)
       )
       return NSCompoundPredicate(andPredicateWithSubpredicates: [undeletedPredicate, inArchivePredicate])
     case .files:
