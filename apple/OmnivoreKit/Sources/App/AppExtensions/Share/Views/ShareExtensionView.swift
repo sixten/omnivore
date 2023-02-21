@@ -177,11 +177,12 @@ public struct ShareExtensionView: View {
         VStack(spacing: 15) {
           SearchBar(searchTerm: $labelsViewModel.labelSearchFilter)
 
-          // swiftlint:disable line_length
           ScrollView {
-            LabelsMasonaryView(labels: labelsViewModel.labels.applySearchFilter(labelsViewModel.labelSearchFilter),
-                               selectedLabels: labelsViewModel.selectedLabels.applySearchFilter(labelsViewModel.labelSearchFilter),
-                               onLabelTap: onLabelTap)
+            LabelsMasonaryView(
+              labels: labelsViewModel.labels.applySearchFilter(labelsViewModel.labelSearchFilter),
+              selectedLabels: labelsViewModel.selectedLabels,
+              onLabelTap: onLabelTap
+            )
             Button(
               action: { labelsViewModel.showCreateLabelModal = true },
               label: {
@@ -200,7 +201,6 @@ public struct ShareExtensionView: View {
             .buttonStyle(PlainButtonStyle())
             .padding(10)
           }.background(Color.appButtonBackground)
-          // swiftlint:enable line_length
         }
       }
     }

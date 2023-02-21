@@ -15,22 +15,18 @@ struct LabelsMasonaryView: View {
   var onLabelTap: (LinkedItemLabel, TextChip) -> Void
 
   @State private var totalHeight = CGFloat.zero
-  private var labelItems: [(label: LinkedItemLabel, selected: Bool)]
+  private var labels: [LinkedItemLabel]
+  private var selectedLabels: Set<LinkedItemLabel>
 
   init(
     labels allLabels: [LinkedItemLabel],
-    selectedLabels: [LinkedItemLabel],
+    selectedLabels: Set<LinkedItemLabel>,
     onLabelTap: @escaping (LinkedItemLabel, TextChip) -> Void
   ) {
     self.onLabelTap = onLabelTap
 
-    let selected = selectedLabels.map { (label: $0, selected: true) }
-    let unselected = allLabels.filter { !selectedLabels.contains($0) }.map { (label: $0, selected: false) }
-    labelItems = (selected + unselected).sorted(by: { left, right in
-      let aTrimmed = left.label.unwrappedName.trimmingCharacters(in: .whitespaces)
-      let bTrimmed = right.label.unwrappedName.trimmingCharacters(in: .whitespaces)
-      return aTrimmed.caseInsensitiveCompare(bTrimmed) == .orderedAscending
-    })
+    self.labels = allLabels.sortedByName()
+    self.selectedLabels = selectedLabels
   }
 
   var body: some View {
@@ -47,8 +43,8 @@ struct LabelsMasonaryView: View {
     var height = CGFloat.zero
 
     return ZStack(alignment: .topLeading) {
-      ForEach(self.labelItems, id: \.label.self) { label in
-        self.item(for: label)
+      ForEach(labels, id: \.self) { label in
+        self.item(for: label, isSelected: self.selectedLabels.contains(label))
           .padding(.horizontal, 5)
           .padding(.vertical, 5)
           .alignmentGuide(.leading, computeValue: { dim in
@@ -57,7 +53,7 @@ struct LabelsMasonaryView: View {
               height -= dim.height
             }
             let result = width
-            if label == self.labelItems.last! {
+            if label == self.labels.last {
               width = 0 // last item
             } else {
               width -= dim.width
@@ -66,7 +62,7 @@ struct LabelsMasonaryView: View {
           })
           .alignmentGuide(.top, computeValue: { _ in
             let result = height
-            if label == self.labelItems.last! {
+            if label == self.labels.last {
               height = 0 // last item
             }
             return result
@@ -76,11 +72,10 @@ struct LabelsMasonaryView: View {
     .background(viewHeightReader($totalHeight))
   }
 
-  private func item(for item: (label: LinkedItemLabel, selected: Bool)) -> some View {
-    let chip = TextChip(feedItemLabel: item.label, negated: false, checked: item.selected, padded: true) { chip in
-      onLabelTap(item.label, chip)
+  private func item(for label: LinkedItemLabel, isSelected: Bool) -> some View {
+    TextChip(feedItemLabel: label, negated: false, checked: isSelected, padded: true) { chip in
+      onLabelTap(label, chip)
     }
-    return chip
   }
 
   private func viewHeightReader(_ binding: Binding<CGFloat>) -> some View {

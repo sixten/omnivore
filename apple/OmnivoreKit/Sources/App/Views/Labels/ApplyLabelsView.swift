@@ -188,8 +188,8 @@ struct ApplyLabelsView: View {
 extension Sequence where Element == LinkedItemLabel {
   func applySearchFilter(_ searchFilter: String) -> [LinkedItemLabel] {
     if searchFilter.isEmpty {
-      return map { $0 } // return the identity of the sequence
+      return Array(self)
     }
-    return filter { ($0.name ?? "").lowercased().contains(searchFilter.lowercased()) }
+    return filter { $0.name?.lowercased().contains(searchFilter.lowercased()) ?? false }
   }
 }
