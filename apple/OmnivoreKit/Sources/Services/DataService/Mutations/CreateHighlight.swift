@@ -78,13 +78,16 @@ extension DataService {
       let syncStatus: ServerSyncStatus = data == nil ? .needsCreation : .isNSync
 
       context.perform {
-        let fetchRequest: NSFetchRequest<Models.Highlight> = Highlight.fetchRequest()
+        let fetchRequest = Highlight.fetchRequest()
         fetchRequest.predicate = NSPredicate(format: "id == %@", highlight.id)
-
-        guard let highlightObject = (try? context.fetch(fetchRequest))?.first else { return }
-        highlightObject.serverSyncStatus = Int64(syncStatus.rawValue)
+        fetchRequest.fetchLimit = 1
 
         do {
+          let highlights = try context.fetch(fetchRequest)
+
+          guard let highlightObject = highlights.first else { return }
+          highlightObject.serverSyncStatus = Int64(syncStatus.rawValue)
+
           try context.save()
           logger.debug("Highlight created succesfully")
         } catch {

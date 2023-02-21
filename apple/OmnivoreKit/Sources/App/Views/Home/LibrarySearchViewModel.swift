@@ -41,8 +41,9 @@ import Views
   }
 
   func saveRecentSearch(dataService: DataService, searchTerm: String) {
-    let fetchRequest: NSFetchRequest<Models.RecentSearchItem> = RecentSearchItem.fetchRequest()
+    let fetchRequest = RecentSearchItem.fetchRequest()
     fetchRequest.predicate = NSPredicate(format: "term == %@", searchTerm)
+    fetchRequest.fetchLimit = 1
 
     let item: RecentSearchItem
     if let fetchedItem = (try? dataService.viewContext.fetch(fetchRequest))?.first {
@@ -57,12 +58,13 @@ import Views
   }
 
   func removeRecentSearch(dataService: DataService, searchTerm: String) {
-    let fetchRequest: NSFetchRequest<Models.RecentSearchItem> = RecentSearchItem.fetchRequest()
+    let fetchRequest = RecentSearchItem.fetchRequest()
     fetchRequest.predicate = NSPredicate(format: "term == %@", searchTerm)
 
-    let objects = try? dataService.viewContext.fetch(fetchRequest)
-    for object in objects ?? [] {
-      dataService.viewContext.delete(object)
+    if let objects = try? dataService.viewContext.fetch(fetchRequest) {
+      for object in objects {
+        dataService.viewContext.delete(object)
+      }
     }
 
     try? dataService.viewContext.save()

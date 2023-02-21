@@ -28,10 +28,11 @@ import Views
 
     do {
       dataService.viewContext.performAndWait {
-        let fetchRequest: NSFetchRequest<Models.RecommendationGroup> = RecommendationGroup.fetchRequest()
-        let sort = NSSortDescriptor(key: #keyPath(RecommendationGroup.name), ascending: true)
-        fetchRequest.predicate = NSPredicate(format: "canPost == %@", NSNumber(value: true))
-        fetchRequest.sortDescriptors = [sort]
+        let fetchRequest = RecommendationGroup.fetchRequest()
+        fetchRequest.predicate = NSPredicate(format: "canPost == YES")
+        fetchRequest.sortDescriptors = [
+          NSSortDescriptor(key: #keyPath(RecommendationGroup.name), ascending: true)
+        ]
 
         // If this fails we will fallback to making the API call
         let groups = try? dataService.viewContext.fetch(fetchRequest).compactMap { object in
