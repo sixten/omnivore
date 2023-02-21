@@ -61,18 +61,10 @@ extension LinkedItemLabel {
   public var unwrappedName: String { name ?? "" }
 
   static func lookup(byID id: String, inContext context: NSManagedObjectContext) -> LinkedItemLabel? {
-    let fetchRequest: NSFetchRequest<Models.LinkedItemLabel> = LinkedItemLabel.fetchRequest()
-    fetchRequest.predicate = NSPredicate(
-      format: "id == %@", id
-    )
-
-    var label: LinkedItemLabel?
-
-    context.performAndWait {
-      label = (try? context.fetch(fetchRequest))?.first
-    }
-
-    return label
+    let fetchRequest = LinkedItemLabel.fetchRequest()
+    fetchRequest.predicate = NSPredicate(format: "id == %@", id)
+    fetchRequest.fetchLimit = 1
+    return (try? context.fetch(fetchRequest))?.first
   }
 
   func update(

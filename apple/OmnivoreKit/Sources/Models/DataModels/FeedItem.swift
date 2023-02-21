@@ -191,18 +191,10 @@ public extension LinkedItem {
   }
 
   static func lookup(byID itemID: String, inContext context: NSManagedObjectContext) -> LinkedItem? {
-    let fetchRequest: NSFetchRequest<Models.LinkedItem> = LinkedItem.fetchRequest()
-    fetchRequest.predicate = NSPredicate(
-      format: "id == %@", itemID
-    )
-
-    var item: LinkedItem?
-
-    context.performAndWait {
-      item = (try? context.fetch(fetchRequest))?.first
-    }
-
-    return item
+    let fetchRequest = LinkedItem.fetchRequest()
+    fetchRequest.predicate = NSPredicate(format: "id == %@", itemID)
+    fetchRequest.fetchLimit = 1
+    return (try? context.fetch(fetchRequest))?.first
   }
 
   // swiftlint:disable:next cyclomatic_complexity

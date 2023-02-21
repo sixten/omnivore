@@ -186,9 +186,10 @@ extension DataService {
   /// - Returns: The id of the CoreData object if found.
   func linkedItemID(from requestID: String) async -> String? {
     await backgroundContext.perform(schedule: .immediate) {
-      let fetchRequest: NSFetchRequest<Models.LinkedItem> = LinkedItem.fetchRequest()
+      let fetchRequest = LinkedItem.fetchRequest()
       fetchRequest.predicate = NSPredicate(format: "createdId == %@ OR id == %@", requestID, requestID)
-      return try? self.backgroundContext.fetch(fetchRequest).first?.unwrappedID
+      fetchRequest.fetchLimit = 1
+      return try? self.backgroundContext.fetch(fetchRequest).first?.id
     }
   }
 

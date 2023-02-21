@@ -5,18 +5,10 @@ public extension Highlight {
   var unwrappedID: String { id ?? "" }
 
   static func lookup(byID highlightID: String, inContext context: NSManagedObjectContext) -> Highlight? {
-    let fetchRequest: NSFetchRequest<Models.Highlight> = Highlight.fetchRequest()
-    fetchRequest.predicate = NSPredicate(
-      format: "id == %@", highlightID
-    )
-
-    var highlight: Highlight?
-
-    context.performAndWait {
-      highlight = (try? context.fetch(fetchRequest))?.first
-    }
-
-    return highlight
+    let fetchRequest = Highlight.fetchRequest()
+    fetchRequest.predicate = NSPredicate(format: "id == %@", highlightID)
+    fetchRequest.fetchLimit = 1
+    return (try? context.fetch(fetchRequest))?.first
   }
 
   var sortedLabels: [LinkedItemLabel] {
