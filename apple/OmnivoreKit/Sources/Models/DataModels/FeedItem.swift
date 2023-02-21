@@ -116,9 +116,8 @@ public extension LinkedItem {
   }
 
   var sortedLabels: [LinkedItemLabel] {
-    labels.asArray(of: LinkedItemLabel.self).sorted {
-      ($0.name ?? "").lowercased() < ($1.name ?? "").lowercased()
-    }
+    guard let labels = labels as? Set<LinkedItemLabel> else { return [] }
+    return labels.sortedByName()
   }
 
   var sortedHighlights: [Highlight] {

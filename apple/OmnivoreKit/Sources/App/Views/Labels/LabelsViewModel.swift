@@ -13,11 +13,7 @@ import Views
   @Published var labelSearchFilter = ""
 
   func setLabels(_ labels: [LinkedItemLabel]) {
-    self.labels = labels.sorted { left, right in
-      let aTrimmed = left.unwrappedName.trimmingCharacters(in: .whitespaces)
-      let bTrimmed = right.unwrappedName.trimmingCharacters(in: .whitespaces)
-      return aTrimmed.caseInsensitiveCompare(bTrimmed) == .orderedAscending
-    }
+    self.labels = labels.sortedByName()
   }
 
   func loadLabels(
@@ -27,11 +23,21 @@ import Views
     initiallySelectedLabels: [LinkedItemLabel]? = nil
   ) async {
     isLoading = true
-    let selLabels = initiallySelectedLabels ?? item?.sortedLabels ?? highlight?.sortedLabels ?? []
+
+    let initiallySelected: Set<LinkedItemLabel>
+    if let labels = initiallySelectedLabels {
+      initiallySelected = Set(labels)
+    } else if let labels = item?.labels as? Set<LinkedItemLabel> {
+      initiallySelected = labels
+    } else if let labels = highlight?.labels as? Set<LinkedItemLabel> {
+      initiallySelected = labels
+    } else {
+      initiallySelected = []
+    }
 
     await loadLabelsFromStore(dataService: dataService)
     for label in labels {
-      if selLabels.contains(label) {
+      if initiallySelected.contains(label) {
         selectedLabels.insert(label)
       } else {
         unselectedLabels.insert(label)
@@ -45,7 +51,7 @@ import Views
             self.setLabels(labelIDs.compactMap { dataService.viewContext.object(with: $0) as? LinkedItemLabel })
           }
           for label in self.labels {
-            if selLabels.contains(label) {
+            if initiallySelected.contains(label) {
               self.selectedLabels.insert(label)
             } else {
               self.unselectedLabels.insert(label)
