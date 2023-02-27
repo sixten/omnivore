@@ -1,14 +1,20 @@
+import Combine
 import CoreData
 import Models
+import OSLog
 import Services
 import SwiftUI
 import Utils
 import Views
 
+let logger = Logger(subsystem: "app.omnivore", category: "models")
+
+// swiftlint:disable type_body_length
 @MainActor final class HomeFeedViewModel: NSObject, ObservableObject {
   var currentDetailViewModel: LinkItemDetailViewModel?
 
   private var fetchedResultsController: NSFetchedResultsController<LinkedItem>?
+  private var storageNotificationCancellable: AnyCancellable?
 
   @Published var items = [LinkedItem]()
   @Published var isLoading = false
@@ -258,6 +264,13 @@ import Views
 
       frc.delegate = self
       fetchedResultsController = frc
+
+      storageNotificationCancellable = NotificationCenter.default
+        .publisher(for: DataService.didResetLocalStorage)
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in
+          self?.refetch()
+        }
     }
 
     refetch()
@@ -269,6 +282,7 @@ import Views
       try frc.performFetch()
       items = frc.fetchedObjects ?? []
     } catch {
+      logger.error("HomeFeedViewModel could not fetch items from Core Data: \(error.localizedDescription)")
       items = []
     }
   }

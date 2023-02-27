@@ -19,6 +19,8 @@ public final class DataService: ObservableObject {
   public static var registerIntercomUser: ((String) -> Void)?
   public static var showIntercomMessenger: (() -> Void)?
 
+  public static let didResetLocalStorage = NSNotification.Name("DataServiceDidResetLocalStorage")
+
   public let appEnvironment: AppEnvironment
   public let networker: Networker
 
@@ -162,6 +164,8 @@ public final class DataService: ObservableObject {
         fatalError("Core Data store failed to load with error: \(error)")
       }
     }
+
+    NotificationCenter.default.post(name: DataService.didResetLocalStorage, object: self)
   }
 
   private static func isFirstTimeRunningNewAppBuild() -> Bool {
