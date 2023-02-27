@@ -22,8 +22,8 @@ public final class DataService: ObservableObject {
   public let appEnvironment: AppEnvironment
   public let networker: Networker
 
-  var persistentContainer: PersistentContainer
-  public var backgroundContext: NSManagedObjectContext
+  private let persistentContainer: PersistentContainer
+  public let backgroundContext: NSManagedObjectContext
 
   public var viewContext: NSManagedObjectContext {
     persistentContainer.viewContext
@@ -49,21 +49,25 @@ public final class DataService: ObservableObject {
   public init(appEnvironment: AppEnvironment, networker: Networker) {
     self.appEnvironment = appEnvironment
     self.networker = networker
-    self.persistentContainer = PersistentContainer.make()
-    self.backgroundContext = persistentContainer.newBackgroundContext()
 
-    backgroundContext.automaticallyMergesChangesFromParent = true
-    backgroundContext.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
+    let container = PersistentContainer.make()
 
-    if isFirstTimeRunningNewAppBuild() {
-      resetLocalStorage()
-    } else {
-      persistentContainer.loadPersistentStores { _, error in
-        if let error = error {
-          fatalError("Core Data store failed to load with error: \(error)")
-        }
+    if DataService.isFirstTimeRunningNewAppBuild() {
+      try? container.destroyPersistentStores()
+    }
+
+    container.loadPersistentStores { _, error in
+      if let error = error {
+        fatalError("Core Data store failed to load with error: \(error)")
       }
     }
+
+    let bgContext = container.newBackgroundContext()
+    bgContext.automaticallyMergesChangesFromParent = true
+    bgContext.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
+
+    self.persistentContainer = container
+    self.backgroundContext = bgContext
   }
 
   public var currentViewer: Viewer? {
@@ -88,8 +92,9 @@ public final class DataService: ObservableObject {
   public func switchAppEnvironment(appEnvironment: AppEnvironment) {
     do {
       try ValetKey.appEnvironmentString.setValue(appEnvironment.rawValue)
-      clearCoreData()
-      fatalError("App environment changed -- restarting app")
+      resetLocalStorage()
+      logger.warning("App environment changed -- restarting app")
+      abort()
     } catch {
       fatalError("Unable to write to Keychain: \(error)")
     }
@@ -97,22 +102,6 @@ public final class DataService: ObservableObject {
 
   public func hasConnectionAndValidToken() async -> Bool {
     await networker.hasConnectionAndValidToken()
-  }
-
-  private func clearCoreData() {
-    let storeContainer = persistentContainer.persistentStoreCoordinator
-
-    do {
-      for store in storeContainer.persistentStores {
-        try storeContainer.destroyPersistentStore(
-          at: store.url!,
-          ofType: store.type,
-          options: nil
-        )
-      }
-    } catch {
-      logger.debug("Failed to clear core data stores")
-    }
   }
 
   private func clearDownloadedFiles() {
@@ -165,23 +154,21 @@ public final class DataService: ObservableObject {
   public func resetLocalStorage() {
     lastItemSyncTime = Date(timeIntervalSinceReferenceDate: 0)
 
-    clearCoreData()
+    try? persistentContainer.destroyPersistentStores()
     clearDownloadedFiles()
 
-    persistentContainer = PersistentContainer.make()
     persistentContainer.loadPersistentStores { _, error in
       if let error = error {
         fatalError("Core Data store failed to load with error: \(error)")
       }
     }
-    backgroundContext = persistentContainer.newBackgroundContext()
   }
 
-  private func isFirstTimeRunningNewAppBuild() -> Bool {
-    let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-    let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-
-    guard let appVersion = appVersion, let buildNumber = buildNumber else { return false }
+  private static func isFirstTimeRunningNewAppBuild() -> Bool {
+    guard
+      let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+      let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+    else { return false }
 
     let lastUsedAppVersion = UserDefaults.standard.string(forKey: UserDefaultKey.lastUsedAppVersion.rawValue)
     UserDefaults.standard.set(appVersion, forKey: UserDefaultKey.lastUsedAppVersion.rawValue)
@@ -189,8 +176,8 @@ public final class DataService: ObservableObject {
     let lastUsedAppBuildNumber = UserDefaults.standard.string(forKey: UserDefaultKey.lastUsedAppBuildNumber.rawValue)
     UserDefaults.standard.set(buildNumber, forKey: UserDefaultKey.lastUsedAppBuildNumber.rawValue)
 
-    let isFirstRunOfVersion = (lastUsedAppVersion ?? "unknown") != appVersion
-    let isFirstRunWithBuildNumber = (lastUsedAppBuildNumber ?? "unknown") != buildNumber
+    let isFirstRunOfVersion = appVersion != lastUsedAppVersion
+    let isFirstRunWithBuildNumber = buildNumber != lastUsedAppBuildNumber
 
     return isFirstRunOfVersion || isFirstRunWithBuildNumber
   }
